@@ -1,0 +1,112 @@
+.grid-container {
+	height: 50%;
+	width: 50%;
+	overflow: hidden;
+	color: #3c3e45;
+	background: #e8eaf0;
+}
+.thegrid { 
+	position: relative;
+	height: 400%;
+	width: 400%;
+	transition: top 1s ease,
+				left 1s ease;
+}
+
+.grid-room-hidden {
+	display: none;
+}
+
+/*** Grid Room Coordinates ***/
+
+.thegrid.room-0 {
+	top: 0;
+	left: 0;
+}
+.thegrid.room-1 {
+	top: 0;
+	left: -100%;
+}
+.thegrid.room-2 {
+	top: 0;
+	left: -200%;
+}
+.thegrid.room-3 {
+	top: 0;
+	left: -300%;
+}
+.thegrid.room-4 {
+	top: -100%;
+	left: 0;
+}
+.thegrid.room-5 {
+	top: -100%;
+	left: -100%;
+}
+.thegrid.room-6 {
+	top: -100%;
+	left: -200%;
+}
+.thegrid.room-7 {
+	top: -100%;
+	left: -300%;
+}
+
+.grid-room {
+	position: absolute;
+	left: 0;
+	right: 0;
+	overflow: auto;
+	margin: 5px 0;
+}
+
+/*** Grid Room Locations ***/
+
+.grid-room.room-0 {
+	top: 0;
+	bottom: 75%;
+	left: 0;
+	right: 75%;
+}
+.grid-room.room-1 {
+	top: 0;
+	bottom: 75%;
+	left: 25%;
+	right: 50%;
+}
+.grid-room.room-2 {
+	top: 0;
+	bottom: 75%;
+	left: 50%;
+	right: 25%;
+}
+.grid-room.room-3 {
+	top: 0;
+	bottom: 75%;
+	left: 75%;
+	right: 0;
+}
+.grid-room.room-4 {
+	top: 25%;
+	bottom: 50%;
+	left: 0;
+	right: 75%;
+}
+.grid-room.room-5 {
+	top: 25%;
+	bottom: 50%;
+	left: 25%;
+	right: 50%;
+}
+.grid-room.room-6 {
+	top: 25%;
+	bottom: 50%;
+	left: 50%;
+	right: 25%;
+}
+.grid-room.room-7 {
+	top: 25%;
+	bottom: 50%;
+	left: 75%;
+	right: 0;
+}

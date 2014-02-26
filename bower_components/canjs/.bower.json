@@ -1,0 +1,27 @@
+{
+  "name": "CanJS",
+  "version": "2.0.5",
+  "repo": "bitovi/canjs",
+  "description": "Can do JavaScript MVC",
+  "main": "can.jquery.js",
+  "keywords": [
+    "mvc",
+    "canjs",
+    "can",
+    "requirejs",
+    "component",
+    "amd"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/bitovi/canjs.com",
+  "_release": "2.0.5",
+  "_resolution": {
+    "type": "version",
+    "tag": "v2.0.5",
+    "commit": "35d9cd0e7532d5124597c5b8634ff526c66bb6d9"
+  },
+  "_source": "git://github.com/bitovi/canjs.com.git",
+  "_target": "~2.0.5",
+  "_originalSource": "canjs",
+  "_direct": true
+}

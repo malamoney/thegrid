@@ -1,0 +1,27 @@
+{
+  "name": "thegrid",
+  "version": "0.0.0",
+  "authors": [
+    "Mike Malamud <mike.malamud@gmail.com>"
+  ],
+  "description": "grid layout for website navigation",
+  "main": "thegrid.js",
+  "keywords": [
+    "thegrid"
+  ],
+  "license": "MIT",
+  "homepage": "www.malamoney.com",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "canjs": "~2.0.5",
+    "jquery": "~2.1.0",
+    "requirejs": "~2.1.11",
+    "modernizr": "~2.7.1"
+  }
+}
