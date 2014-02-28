@@ -136,6 +136,11 @@ define([
             }, false);
         },
 
+        /**
+         * Get grid coordinates for a given room number
+         * @param  {Number} room Room number
+         * @return {Object}      Coordinates
+         */
         _getCoordinates: function(room) {
             return {
                 y: ~~(room/this.options.gridSize),
@@ -143,15 +148,22 @@ define([
             };
         },
 
+        /**
+         * Get grid room number at given coordinates
+         * @param  {Object} coordinates Coordinates
+         * @return {Number}             Room number
+         */
         _getRoomFromCoordinates: function(coordinates) {
             return (this.options.gridSize * coordinates.y) + coordinates.x;
         },
 
-        _getRoomData: function(roomNumber) {
-
-        },
-
-        _getMoveCoordinates: function(from, direction) {
+        /**
+         * Get the coordinates to move to given a direction
+         * @param  {Object} from      From coordinates
+         * @param  {String} direction Direction to move
+         * @return {Object}           Coordinates to move to
+         */
+        _getMoveToCoordinates: function(from, direction) {
             var coordinates,
                 gridSize = this.options.gridSize;
 
@@ -187,58 +199,74 @@ define([
             return coordinates;
         },
 
+        /**
+         * Move current location on grid
+         * @param  {String} direction Direction to move
+         * @return {Boolean}          Whether move was successfull
+         */
         _move: function(direction) {
             var thegrid = this.thegrid,
                 currentCoordinates = this.state.attr("currentCoordinates"),
-                moveToCoords = this._getMoveCoordinates(this.state.attr("currentCoordinates"), direction),
+                moveToCoords = this._getMoveToCoordinates(this.state.attr("currentCoordinates"), direction),
                 moveToRoom = this._getRoomFromCoordinates(moveToCoords);
 
+            // Check if we are allowed to move from the current location to the request location
             if(this._isMoveAllowed(currentCoordinates, moveToRoom)) {
                 thegrid.className = thegrid.className.replace(new RegExp(thegrid.dataset.room), "");
                 thegrid.className += " room-" + moveToRoom;
                 thegrid.setAttribute("data-room", "room-" + moveToRoom);
                 this.state.attr("currentRoom", moveToRoom);
                 this.state.attr("currentCoordinates", this._getCoordinates(moveToRoom));
+                return 1;
             }
             else {
                 console.log("move not allowed");
                 this.state.attr("ready", 1);
+                return 0;
             }
         },
 
-        _getLegalMoves: function(room) {
+        /**
+         * Get an array of room numbers to which you can move to from a given set of coordinates
+         * @param  {Object} room Room coordinates
+         * @return {Array}       List of allowed rooms you can move to
+         */
+        _getAllowedMoves: function(room) {
             var legalMoves = [],
                 gridSize = this.options.gridSize,
                 wrapping = this.options.wrapping;
 
             if(room.x > 0 || (room.x === 0 && wrapping)) {
-                legalMoves.push(this._getRoomFromCoordinates(this._getMoveCoordinates(room, "left")));
+                legalMoves.push(this._getRoomFromCoordinates(this._getMoveToCoordinates(room, "left")));
             }
             if(room.x < (gridSize-1) || (room.x === (gridSize-1) && wrapping)) {
-                legalMoves.push(this._getRoomFromCoordinates(this._getMoveCoordinates(room, "right")));
+                legalMoves.push(this._getRoomFromCoordinates(this._getMoveToCoordinates(room, "right")));
             }
             if(room.y > 0 || (room.y === 0 && wrapping)) {
-                legalMoves.push(this._getRoomFromCoordinates(this._getMoveCoordinates(room, "up")));
+                legalMoves.push(this._getRoomFromCoordinates(this._getMoveToCoordinates(room, "up")));
             }
             if(room.y < (gridSize-1) || (room.y === (gridSize-1) && wrapping)) {
-                legalMoves.push(this._getRoomFromCoordinates(this._getMoveCoordinates(room, "down")));
+                legalMoves.push(this._getRoomFromCoordinates(this._getMoveToCoordinates(room, "down")));
             }
             return legalMoves;
         },
 
+        /**
+         * Check if a specific move is allowed
+         * @param  {Object}  from Coordinates of starting room
+         * @param  {Number}  to   Room number of room we want to move to
+         * @return {Boolean}      Whether move is allowed
+         */
         _isMoveAllowed: function(from, to) {
-            var legalMoves = this._getLegalMoves(from);
-            console.dir(legalMoves);
+            var legalMoves = this._getAllowedMoves(from);
             return ~(can.inArray(to, legalMoves));
         },
 
-        " up": "up",
-
-        up: function(el, ev, data) {
-            this._move("up");
-        },
-
-        // Bind to the keydown event so we can listen for the arrow keys
+        /**
+         * Bind to the keydown event so we can listen for the arrow keys
+         * @param  {HTMLElement} el     The element the keydown event was triggered on
+         * @param  {jQuery.Event} ev    keydown event
+         */
         "{arrowKeysTargetEl} keydown": function(el, ev) {
 
             var charCode = (ev.which) ? ev.which : event.keyCode,
