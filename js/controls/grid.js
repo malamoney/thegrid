@@ -61,7 +61,9 @@ define([
             gridSize: 4,
             arrowKeysTargetEl: $(document),
             roomList: [],
-            startingRoom: "room-1"
+            startingRoom: 0,
+            wrapping: 0,
+            diagonal: 0
         }
     },{
         init: function() {
@@ -75,7 +77,10 @@ define([
 
             // Create the state
             this.state = new can.Map({
-                ready: 1
+                ready: 1,
+                currentRoom: this.options.startingRoom,
+                currentCoordinates: this._getCoordinates(this.options.startingRoom),
+                currentRoomStr: "room-" + this.options.startingRoom
             });
 
             // Create a fragment to contain the grid DOM
@@ -99,8 +104,8 @@ define([
             containerEl.appendChild(gridEl);
 
             // Set the starting room
-            gridEl.className += " " + this.options.startingRoom;
-            gridEl.setAttribute("data-room", this.options.startingRoom);
+            gridEl.className += " " + this.state.attr("currentRoomStr");
+            gridEl.setAttribute("data-room", this.state.attr("currentRoomStr"));
 
             // Append the grid container to the document fragment
             fragment.appendChild(containerEl);
@@ -118,8 +123,10 @@ define([
                 }
             }
 
+            // Attach the grid fragment to the DOM
             el.appendChild(fragment.cloneNode(true));
 
+            // Store a reference to thegrid
             this.thegrid = document.getElementsByClassName("thegrid")[0];
 
             // On transistionEnd, re-enable grid movement
@@ -127,6 +134,108 @@ define([
                 self.state.attr("ready", 1);
                 //console.log("transition ended...");
             }, false);
+        },
+
+        _getCoordinates: function(room) {
+            return {
+                y: ~~(room/this.options.gridSize),
+                x: room % this.options.gridSize
+            };
+        },
+
+        _getRoomFromCoordinates: function(coordinates) {
+            return (this.options.gridSize * coordinates.y) + coordinates.x;
+        },
+
+        _getRoomData: function(roomNumber) {
+
+        },
+
+        _getMoveCoordinates: function(from, direction) {
+            var coordinates,
+                gridSize = this.options.gridSize;
+
+            switch(direction) {
+                case "up":
+                    coordinates = {
+                        y: (from.y+(gridSize-1)) % gridSize,
+                        x: from.x
+                    };
+                    break;
+                case "down":
+                    coordinates = {
+                        y: (from.y+(gridSize+1)) % gridSize,
+                        x: from.x
+                    };
+                    break;
+                case "left":
+                    coordinates = {
+                        y: from.y,
+                        x: (from.x+(gridSize-1)) % gridSize
+                    };
+                    break;
+                case "right":
+                    coordinates = {
+                        y: from.y,
+                        x: (from.x+(gridSize+1)) % gridSize
+                    };
+                    break;
+                default:
+                    coordinates = from;
+                    break;
+            }
+            return coordinates;
+        },
+
+        _move: function(direction) {
+            var thegrid = this.thegrid,
+                currentCoordinates = this.state.attr("currentCoordinates"),
+                moveToCoords = this._getMoveCoordinates(this.state.attr("currentCoordinates"), direction),
+                moveToRoom = this._getRoomFromCoordinates(moveToCoords);
+
+            if(this._isMoveAllowed(currentCoordinates, moveToRoom)) {
+                thegrid.className = thegrid.className.replace(new RegExp(thegrid.dataset.room), "");
+                thegrid.className += " room-" + moveToRoom;
+                thegrid.setAttribute("data-room", "room-" + moveToRoom);
+                this.state.attr("currentRoom", moveToRoom);
+                this.state.attr("currentCoordinates", this._getCoordinates(moveToRoom));
+            }
+            else {
+                console.log("move not allowed");
+                this.state.attr("ready", 1);
+            }
+        },
+
+        _getLegalMoves: function(room) {
+            var legalMoves = [],
+                gridSize = this.options.gridSize,
+                wrapping = this.options.wrapping;
+
+            if(room.x > 0 || (room.x === 0 && wrapping)) {
+                legalMoves.push(this._getRoomFromCoordinates(this._getMoveCoordinates(room, "left")));
+            }
+            if(room.x < (gridSize-1) || (room.x === (gridSize-1) && wrapping)) {
+                legalMoves.push(this._getRoomFromCoordinates(this._getMoveCoordinates(room, "right")));
+            }
+            if(room.y > 0 || (room.y === 0 && wrapping)) {
+                legalMoves.push(this._getRoomFromCoordinates(this._getMoveCoordinates(room, "up")));
+            }
+            if(room.y < (gridSize-1) || (room.y === (gridSize-1) && wrapping)) {
+                legalMoves.push(this._getRoomFromCoordinates(this._getMoveCoordinates(room, "down")));
+            }
+            return legalMoves;
+        },
+
+        _isMoveAllowed: function(from, to) {
+            var legalMoves = this._getLegalMoves(from);
+            console.dir(legalMoves);
+            return ~(can.inArray(to, legalMoves));
+        },
+
+        " up": "up",
+
+        up: function(el, ev, data) {
+            this._move("up");
         },
 
         // Bind to the keydown event so we can listen for the arrow keys
@@ -145,41 +254,21 @@ define([
                 if(!this.state.attr("ready")) return;
                 this.state.attr("ready", 0);
 
-                currentRoom = +thegrid.dataset.room.replace(/room-/, "");
+                currentRoom = this.state.attr("currentRoom");
                 row = ~~(currentRoom/gridSize);
                 console.log("currentRoom: " + currentRoom + "(" + row + ")");
 
                 if(charCode === 37) {
-                    if(currentRoom-1 >= row*gridSize) {
-                        thegrid.className = thegrid.className.replace(new RegExp(thegrid.dataset.room), "");
-                        thegrid.className += " room-" + (currentRoom-1);
-                        thegrid.setAttribute("data-room", "room-" + (currentRoom-1));
-                    }
-                    else this.state.attr("ready", 1);
+                    this._move("left");
                 }
                 else if(charCode === 38) {
-                    if(currentRoom-gridSize >= 0) {
-                        thegrid.className = thegrid.className.replace(new RegExp(thegrid.dataset.room), "");
-                        thegrid.className += " room-" + (currentRoom-gridSize);
-                        thegrid.setAttribute("data-room", "room-" + (currentRoom-gridSize));
-                    }
-                    else this.state.attr("ready", 1);
+                    this._move("up");
                 }
                 else if(charCode === 39) {
-                    if(currentRoom+1 < (row+1)*gridSize) {
-                        thegrid.className = thegrid.className.replace(new RegExp(thegrid.dataset.room), "");
-                        thegrid.className += " room-" + (currentRoom+1);
-                        thegrid.setAttribute("data-room", "room-" + (currentRoom+1));
-                    }
-                    else this.state.attr("ready", 1);
+                    this._move("right");
                 }
                 else if(charCode === 40) {
-                    if(currentRoom+gridSize < gridSize*gridSize) {
-                        thegrid.className = thegrid.className.replace(new RegExp(thegrid.dataset.room), "");
-                        thegrid.className += " room-" + (currentRoom+gridSize);
-                        thegrid.setAttribute("data-room", "room-" + (currentRoom+gridSize));
-                    }
-                    else this.state.attr("ready", 1);
+                    this._move("down");
                 }
             }
         }
