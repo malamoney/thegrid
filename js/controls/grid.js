@@ -1,6 +1,8 @@
 define([
-    'can/control'
-], function(Control) {
+    'can/control',
+    'can/map',
+    'mustache!../../views/thegrid'
+], function(Control, Map, gridStache) {
     'use strict';
 
     /**
@@ -19,7 +21,9 @@ define([
             for(i=0; i<gridSize; i++) {
                 gridArray.push([]);
                 for(j=0; j<gridSize; j++) {
-                    gridArray[i].push(gridData[i] ? gridData[i][j] : undefined);
+                    gridArray[i].push(gridData[i] ? new can.Map({
+                        gid: gridData[i][j]
+                    }) : undefined);
                 }
             }
         }
@@ -27,7 +31,9 @@ define([
             for(i=0; i<gridSize; i++) {
                 gridArray.push([]);
                 for(j=0; j<gridSize; j++) {
-                    gridArray[i].push(gridData[j+(gridSize*i)]);
+                    gridArray[i].push(new can.Map({
+                        gid: gridData[j+(gridSize*i)]
+                    }));
                 }
             }
         }
@@ -71,69 +77,62 @@ define([
                 el = this.element[0],
                 gridData = _makeGridArray(this.options.roomList, this.options.gridSize),
                 fragment,
-                gridEl,
-                containerEl,
                 room;
+
+            this.gridData = gridData;
 
             // Create the state
             this.state = new can.Map({
                 ready: 1,
                 currentRoom: this.options.startingRoom,
                 currentCoordinates: this._getCoordinates(this.options.startingRoom),
-                currentRoomStr: "room-" + this.options.startingRoom
+                currentClass: can.compute(function() {
+                    return "room-" + self.state.attr("currentRoom");
+                })
             });
 
-            // Create a fragment to contain the grid DOM
-            fragment = document.createDocumentFragment();
-            gridEl = document.createElement("div");
-            gridEl.className = "thegrid";
+            fragment = document.createDocumentFragment("div");
 
             // Move all the potential rooms to the new grid element
-            while(el.childNodes.length > 0) {
-
-                // Add a class to hide all potential rooms
-                el.childNodes[0].className += " grid-room-hidden";
-                gridEl.appendChild(el.childNodes[0]);
+            while(this.element.children().length > 0) {
+                $(this.element.children()[0]).addClass("grid-room-hidden");
+                fragment.appendChild(this.element.children()[0]);
             }
 
-            // Create the grid container
-            containerEl = document.createElement("section");
-            containerEl.className = "grid-container";
-
-            // Wrap the grid in a grid-container
-            containerEl.appendChild(gridEl);
-
-            // Set the starting room
-            gridEl.className += " " + this.state.attr("currentRoomStr");
-            gridEl.setAttribute("data-room", this.state.attr("currentRoomStr"));
-
-            // Append the grid container to the document fragment
-            fragment.appendChild(containerEl);
-
-            // Attach grid-room classes to each grid element (room)
+            // Setup all the grid rooms
             for(var i=0; i<gridData.length; i++) {
                 for(var j=0; j<gridData[i].length; j++) {
 
-                    room = fragment.querySelector("#"+gridData[i][j]);
-                    if(room) {
-                        room.className = room.className.replace(/\bgrid-room-hidden\b/,'');
-                        room.className += " grid-room room-"+(i*this.options.gridSize+j);
+                    if(gridData[i][j]) {
+                        room = fragment.querySelector("#" + gridData[i][j].attr("gid"));
+                        if(room) {
+                            room.className = room.className.replace(/\bgrid-room-hidden\b/,'');
+                            room.className += " grid-room room-"+(i*this.options.gridSize+j);
+                        }
+                        else {}
                     }
-                    else {}
                 }
             }
 
-            // Attach the grid fragment to the DOM
-            el.appendChild(fragment.cloneNode(true));
+            // Attach the grid template
+            this.element.html(gridStache(this.state));
 
-            // Store a reference to thegrid
-            this.thegrid = document.getElementsByClassName("thegrid")[0];
+            // Save a reference to thegrid and append the grid contents
+            this.thegrid = this.element.find(".thegrid");
+            this.thegrid.append(fragment.cloneNode(true));
 
-            // On transistionEnd, re-enable grid movement
-            this.thegrid.addEventListener(_whichTransitionEvent(), function() {
-                self.state.attr("ready", 1);
-                //console.log("transition ended...");
-            }, false);
+            this.options.gridEl = this.thegrid;
+            this.options.transitionEndEvent = _whichTransitionEvent();
+            this.on();
+        },
+
+        /**
+         * On transistionEnd, re-enable grid movement
+         * @param  {HTMLElement} el  thegrid element
+         * @param  {jQuery.Event} ev transitionend event
+         */
+        "{gridEl} {transitionEndEvent}": function(el, ev) {
+            this.state.attr("ready", 1);
         },
 
         /**
@@ -212,9 +211,7 @@ define([
 
             // Check if we are allowed to move from the current location to the request location
             if(this._isMoveAllowed(currentCoordinates, moveToRoom)) {
-                thegrid.className = thegrid.className.replace(new RegExp(thegrid.dataset.room), "");
-                thegrid.className += " room-" + moveToRoom;
-                thegrid.setAttribute("data-room", "room-" + moveToRoom);
+                thegrid.removeClass(thegrid.data("room")).addClass("room-" + moveToRoom).data("room", "room-" + moveToRoom);
                 this.state.attr("currentRoom", moveToRoom);
                 this.state.attr("currentCoordinates", this._getCoordinates(moveToRoom));
                 return 1;
