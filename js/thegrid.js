@@ -2,7 +2,8 @@
 require.config({
 	paths: {
 		jquery: '../bower_components/jquery/dist/jquery',
-		can: '../bower_components/canjs/amd/can'
+		can: '../bower_components/canjs/amd/can',
+		mustache: './lib/mustache'
 	}
 });
 
