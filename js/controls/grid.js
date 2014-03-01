@@ -1,9 +1,16 @@
 define([
     'can/control',
     'can/map',
-    'mustache!../../views/thegrid'
+    'mustache!../../views/thegrid',
+    'can/compute'
 ], function(Control, Map, gridStache) {
     'use strict';
+
+    /*can.Mustache.registerHelper("frag", function(frag) {
+        return function(el) {
+            el.parentNode.replaceChild(frag, el);
+        };
+    });*/
 
     /**
      * Convert an array of grid data to the grid format required by thegrid
@@ -84,13 +91,16 @@ define([
             // Create the state
             this.state = new can.Map({
                 ready: 1,
-                currentRoom: this.options.startingRoom,
                 currentCoordinates: this._getCoordinates(this.options.startingRoom),
+                currentRoom: can.compute(function() {
+                    return self._getRoomFromCoordinates(self.state.attr("currentCoordinates"));
+                }),
                 currentClass: can.compute(function() {
-                    return "room-" + self.state.attr("currentRoom");
+                    return "room-" + self.state.currentRoom();
                 })
             });
 
+            // Create a document fragment to contain the grid
             fragment = document.createDocumentFragment("div");
 
             // Move all the potential rooms to the new grid element
@@ -106,8 +116,7 @@ define([
                     if(gridData[i][j]) {
                         room = fragment.querySelector("#" + gridData[i][j].attr("gid"));
                         if(room) {
-                            room.className = room.className.replace(/\bgrid-room-hidden\b/,'');
-                            room.className += " grid-room room-"+(i*this.options.gridSize+j);
+                            $(room).removeClass("grid-room-hidden").addClass("grid-room room-"+(i*this.options.gridSize+j));
                         }
                         else {}
                     }
@@ -121,6 +130,7 @@ define([
             this.thegrid = this.element.find(".thegrid");
             this.thegrid.append(fragment.cloneNode(true));
 
+            // Add the grid element and transitionend event to options and rebind event handlers
             this.options.gridEl = this.thegrid;
             this.options.transitionEndEvent = _whichTransitionEvent();
             this.on();
@@ -211,8 +221,6 @@ define([
 
             // Check if we are allowed to move from the current location to the request location
             if(this._isMoveAllowed(currentCoordinates, moveToRoom)) {
-                thegrid.removeClass(thegrid.data("room")).addClass("room-" + moveToRoom).data("room", "room-" + moveToRoom);
-                this.state.attr("currentRoom", moveToRoom);
                 this.state.attr("currentCoordinates", this._getCoordinates(moveToRoom));
                 return 1;
             }
@@ -225,27 +233,39 @@ define([
 
         /**
          * Get an array of room numbers to which you can move to from a given set of coordinates
-         * @param  {Object} room Room coordinates
-         * @return {Array}       List of allowed rooms you can move to
+         * @param  {Object} coordinates Room coordinates
+         * @return {Array}              List of allowed rooms you can move to
          */
-        _getAllowedMoves: function(room) {
-            var legalMoves = [],
+        _getAllowedMoves: function(coordinates) {
+            var allowedMoves = [],
                 gridSize = this.options.gridSize,
-                wrapping = this.options.wrapping;
+                wrapping = this.options.wrapping,
+                roomData = this.gridData[coordinates.y][coordinates.x];
 
-            if(room.x > 0 || (room.x === 0 && wrapping)) {
-                legalMoves.push(this._getRoomFromCoordinates(this._getMoveToCoordinates(room, "left")));
+            // Check if we've already cached the allowed moves
+            if(roomData.attr("allowedMoves")) {
+                return roomData.attr("allowedMoves");
             }
-            if(room.x < (gridSize-1) || (room.x === (gridSize-1) && wrapping)) {
-                legalMoves.push(this._getRoomFromCoordinates(this._getMoveToCoordinates(room, "right")));
+
+            if(coordinates.x > 0 || (coordinates.x === 0 && wrapping)) {
+                allowedMoves.push(this._getRoomFromCoordinates(this._getMoveToCoordinates(coordinates, "left")));
             }
-            if(room.y > 0 || (room.y === 0 && wrapping)) {
-                legalMoves.push(this._getRoomFromCoordinates(this._getMoveToCoordinates(room, "up")));
+            if(coordinates.x < (gridSize-1) || (coordinates.x === (gridSize-1) && wrapping)) {
+                allowedMoves.push(this._getRoomFromCoordinates(this._getMoveToCoordinates(coordinates, "right")));
             }
-            if(room.y < (gridSize-1) || (room.y === (gridSize-1) && wrapping)) {
-                legalMoves.push(this._getRoomFromCoordinates(this._getMoveToCoordinates(room, "down")));
+            if(coordinates.y > 0 || (coordinates.y === 0 && wrapping)) {
+                allowedMoves.push(this._getRoomFromCoordinates(this._getMoveToCoordinates(coordinates, "up")));
             }
-            return legalMoves;
+            if(coordinates.y < (gridSize-1) || (coordinates.y === (gridSize-1) && wrapping)) {
+                allowedMoves.push(this._getRoomFromCoordinates(this._getMoveToCoordinates(coordinates, "down")));
+            }
+
+            // Cache the results so we don't have to do this again next time
+            if(roomData) {
+                roomData.attr("allowedMoves", allowedMoves);
+            }
+
+            return allowedMoves;
         },
 
         /**
@@ -255,8 +275,7 @@ define([
          * @return {Boolean}      Whether move is allowed
          */
         _isMoveAllowed: function(from, to) {
-            var legalMoves = this._getAllowedMoves(from);
-            return ~(can.inArray(to, legalMoves));
+            return ~(can.inArray(to, this._getAllowedMoves(from)));
         },
 
         /**
@@ -265,12 +284,7 @@ define([
          * @param  {jQuery.Event} ev    keydown event
          */
         "{arrowKeysTargetEl} keydown": function(el, ev) {
-
-            var charCode = (ev.which) ? ev.which : event.keyCode,
-                thegrid = this.thegrid,
-                gridSize = this.options.gridSize,
-                currentRoom,
-                row;
+            var charCode = (ev.which) ? ev.which : event.keyCode;
 
             // Check if the key pressed was an arrow key
             if(charCode >= 37 && charCode <= 40) {
@@ -278,10 +292,6 @@ define([
                 // Check if we are currently in motion and if so, prevent until motion is complete
                 if(!this.state.attr("ready")) return;
                 this.state.attr("ready", 0);
-
-                currentRoom = this.state.attr("currentRoom");
-                row = ~~(currentRoom/gridSize);
-                console.log("currentRoom: " + currentRoom + "(" + row + ")");
 
                 if(charCode === 37) {
                     this._move("left");
@@ -296,6 +306,12 @@ define([
                     this._move("down");
                 }
             }
+        },
+
+        "{arrowKeysTargetEl} click": function(el, ev) {
+            
+            // FIXME: check if click was for a link that points to a room
+            console.dir(arguments);
         }
     });
 });
