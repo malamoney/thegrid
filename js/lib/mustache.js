@@ -5,7 +5,6 @@ define(function() {
 		buildMap = {};
 
 	Mustache.load = function(name, parentRequire, load, config) {
-
 		var path = parentRequire.toUrl(name + '.mustache');
 
 		if(config.isBuild) {
@@ -17,7 +16,7 @@ define(function() {
 			});
 		}
 		else {
-			parentRequire(['can/view/mustache', 'can/view/ejs', 'can/observe'], function(can) {
+			parentRequire(['can/view/mustache'], function(can) {
 				load(function(data, helpers){
 					return can.view(path, data, helpers);
 				});
@@ -33,5 +32,4 @@ define(function() {
 	};
 
 	return Mustache;
-
 });
