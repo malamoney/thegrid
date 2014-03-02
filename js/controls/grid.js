@@ -18,10 +18,11 @@ define([
      * @param  {Number} gridSize        number of rows and columns in thegrid
      * @return {Array}                  formatted grid data
      */
-    var _makeGridArray = function(gridData, gridSize) {
+    var _makeGridInternals = function(gridData, gridSize) {
         var i, j,
             temp,
-            gridArray = [];
+            gridArray = [],
+            gridLookup = {};
 
         // Is gridData an array of arrays?
         if(can.isArray(gridData[0])) {
@@ -31,6 +32,13 @@ define([
                     gridArray[i].push(gridData[i] ? new can.Map({
                         gid: gridData[i][j]
                     }) : undefined);
+
+                    if(gridData[i]) {
+                        gridLookup["#"+gridData[i][j]] = {
+                            y: i,
+                            x: j
+                        };
+                    }
                 }
             }
         }
@@ -41,11 +49,20 @@ define([
                     gridArray[i].push(new can.Map({
                         gid: gridData[j+(gridSize*i)]
                     }));
+                    if(gridData[j+(gridSize*i)]) {
+                        gridLookup["#"+gridData[j+(gridSize*i)]] = {
+                            y: i,
+                            x: j
+                        };
+                    }
                 }
             }
         }
 
-        return gridArray;
+        return {
+            gridData: gridArray,
+            gridLookup: gridLookup
+        };
     };
 
     /**
@@ -82,11 +99,12 @@ define([
         init: function() {
             var self = this,
                 el = this.element[0],
-                gridData = _makeGridArray(this.options.roomList, this.options.gridSize),
+                gridData,
                 fragment,
                 room;
 
-            this.gridData = gridData;
+            this.gridInternals = _makeGridInternals(this.options.roomList, this.options.gridSize);
+            gridData = this.gridInternals.gridData;
 
             // Create the state
             this.state = new can.Map({
@@ -240,10 +258,10 @@ define([
             var allowedMoves = [],
                 gridSize = this.options.gridSize,
                 wrapping = this.options.wrapping,
-                roomData = this.gridData[coordinates.y][coordinates.x];
+                roomData = this.gridInternals.gridData[coordinates.y][coordinates.x];
 
             // Check if we've already cached the allowed moves
-            if(roomData.attr("allowedMoves")) {
+            if(roomData && roomData.attr("allowedMoves")) {
                 return roomData.attr("allowedMoves");
             }
 
@@ -309,9 +327,12 @@ define([
         },
 
         "{arrowKeysTargetEl} click": function(el, ev) {
+            var targetCoords = this.gridInternals.gridLookup["#zelda"];
             
             // FIXME: check if click was for a link that points to a room
             console.dir(arguments);
+
+            console.log(this._isMoveAllowed(this.state.attr("currentCoordinates"), this._getRoomFromCoordinates(targetCoords)));
         }
     });
 });
