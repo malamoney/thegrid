@@ -9,15 +9,11 @@ require.config({
 
 require([
 	'jquery',
-	'can/control',
-	'can/route',
 	'./controls/grid'
-], function($, can, route, Grid) {
+], function($, Grid) {
 	'use strict';
 
 	$(function() {
-		// Set up a route that maps to the `filter` attribute
-		//route(':filter');
 		
 		window.g = new Grid("#grid", {
 			roomList: [
@@ -25,8 +21,5 @@ require([
                 ["history", "resume", "zelda", "canjs"]
             ]
 		});
-
-		// Start the router
-		//route.ready();
 	});
 });
