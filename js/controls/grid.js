@@ -1,10 +1,15 @@
 define([
     'can/control',
     'can/map',
+    'can/route',
     'mustache!../../views/thegrid',
-    'can/compute'
-], function(Control, Map, gridStache) {
+    'can/compute',
+    'can/control/route'
+], function(Control, Map, route, gridStache) {
     'use strict';
+
+    // Set up a route that maps to the `filter` attribute
+    route(':room');
 
     /*can.Mustache.registerHelper("frag", function(frag) {
         return function(el) {
@@ -93,7 +98,8 @@ define([
             roomList: [],
             startingRoom: 0,
             wrapping: 0,
-            diagonal: 0
+            diagonal: 0,
+            warping: 0
         }
     },{
         init: function() {
@@ -101,7 +107,8 @@ define([
                 el = this.element[0],
                 gridData,
                 fragment,
-                room;
+                room,
+                roomData;
 
             this.gridInternals = _makeGridInternals(this.options.roomList, this.options.gridSize);
             gridData = this.gridInternals.gridData;
@@ -152,6 +159,14 @@ define([
             this.options.gridEl = this.thegrid;
             this.options.transitionEndEvent = _whichTransitionEvent();
             this.on();
+
+            // Start the router
+            route.ready();
+
+            roomData = this._getRoomDataFromCoordinates(this._getCoordinates(this.options.startingRoom));
+            if(roomData) {
+                can.route.attr("room", roomData.attr("gid"));
+            }
         },
 
         /**
@@ -173,6 +188,10 @@ define([
                 y: ~~(room/this.options.gridSize),
                 x: room % this.options.gridSize
             };
+        },
+
+        _getRoomDataFromCoordinates: function(coordinates) {
+            return this.gridInternals.gridData[coordinates.y][coordinates.x];
         },
 
         /**
@@ -227,18 +246,27 @@ define([
         },
 
         /**
+         * Move in a specified direction
+         * @param  {String} direction Direction to move
+         * @return {Boolean}          Whether the move was successful
+         */
+        _moveDirection: function(direction) {
+            var currentCoordinates = this.state.attr("currentCoordinates"),
+                moveToCoords = this._getMoveToCoordinates(this.state.attr("currentCoordinates"), direction);
+
+            return this._move(currentCoordinates, moveToCoords);
+        },
+
+        /**
          * Move current location on grid
          * @param  {String} direction Direction to move
          * @return {Boolean}          Whether move was successfull
          */
-        _move: function(direction) {
-            var thegrid = this.thegrid,
-                currentCoordinates = this.state.attr("currentCoordinates"),
-                moveToCoords = this._getMoveToCoordinates(this.state.attr("currentCoordinates"), direction),
-                moveToRoom = this._getRoomFromCoordinates(moveToCoords);
+        _move: function(fromCoords, toCoords) {
+            var moveToRoom = this._getRoomFromCoordinates(toCoords);
 
             // Check if we are allowed to move from the current location to the request location
-            if(this._isMoveAllowed(currentCoordinates, moveToRoom)) {
+            if(this._isMoveAllowed(fromCoords, moveToRoom)) {
                 this.state.attr("currentCoordinates", this._getCoordinates(moveToRoom));
                 return 1;
             }
@@ -312,27 +340,59 @@ define([
                 this.state.attr("ready", 0);
 
                 if(charCode === 37) {
-                    this._move("left");
+                    this._moveDirection("left");
                 }
                 else if(charCode === 38) {
-                    this._move("up");
+                    this._moveDirection("up");
                 }
                 else if(charCode === 39) {
-                    this._move("right");
+                    this._moveDirection("right");
                 }
                 else if(charCode === 40) {
-                    this._move("down");
+                    this._moveDirection("down");
                 }
             }
         },
 
-        "{arrowKeysTargetEl} click": function(el, ev) {
-            var targetCoords = this.gridInternals.gridLookup["#zelda"];
-            
-            // FIXME: check if click was for a link that points to a room
-            console.dir(arguments);
+        /**
+         * Listen for changes to the room attribute on can.route
+         * @param  {can.Map} route Matching route
+         * @param  {Object} change Change event details
+         * @param  {String} newVal New value
+         * @param  {String} oldVal Old value
+         */
+        "{can.route} room": function(route, change, newVal, oldVal) {
+            var targetCoords = this.gridInternals.gridLookup["#" + newVal];
 
-            console.log(this._isMoveAllowed(this.state.attr("currentCoordinates"), this._getRoomFromCoordinates(targetCoords)));
+            // Check if the room is on the grid
+            if(targetCoords) {
+
+                // Send the request to move our location in the grid
+                this._move(this.state.attr("currentCoordinates"), targetCoords);
+            }
+            else console.log("off the grid");
+        },
+
+        /**
+         * Event handler for when a link within the grid is clicked
+         * @param  {HTMLElement} el   Target element
+         * @param  {jQuery.Event} ev  Click event
+         */
+        "{arrowKeysTargetEl} a click": function(el, ev) {
+            var target = can.route.deparam(el[0].hash.substring(1)),
+                targetCoords = this.gridInternals.gridLookup["#" + target.room];
+
+            // Check if the room is on the grid
+            if(targetCoords) {
+
+                // Prevent default behavior
+                ev.preventDefault();
+                ev.stopPropagation();
+
+                // Update the room attribute on the route so the move can be attempted
+                can.route.attr("room", target.room);
+            }
+            else console.log("off the grid...");
         }
     });
 });
