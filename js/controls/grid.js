@@ -1,11 +1,12 @@
 define([
+    'lib/grid_helpers',
     'can/control',
     'can/map',
     'can/route',
     'mustache!../../views/thegrid',
     'can/compute',
     'can/control/route'
-], function(Control, Map, route, gridStache) {
+], function(Helpers, Control, Map, route, gridStache) {
     'use strict';
 
     // Set up a route that maps to the `filter` attribute
@@ -16,80 +17,6 @@ define([
             el.parentNode.replaceChild(frag, el);
         };
     });*/
-
-    /**
-     * Convert an array of grid data to the grid format required by thegrid
-     * @param  {Array} gridData         array of grid data
-     * @param  {Number} gridSize        number of rows and columns in thegrid
-     * @return {Array}                  formatted grid data
-     */
-    var _makeGridInternals = function(gridData, gridSize) {
-        var i, j,
-            temp,
-            gridArray = [],
-            gridLookup = {};
-
-        // Is gridData an array of arrays?
-        if(can.isArray(gridData[0])) {
-            for(i=0; i<gridSize; i++) {
-                gridArray.push([]);
-                for(j=0; j<gridSize; j++) {
-                    gridArray[i].push(gridData[i] ? new can.Map({
-                        gid: gridData[i][j]
-                    }) : undefined);
-
-                    if(gridData[i]) {
-                        gridLookup["#"+gridData[i][j]] = {
-                            y: i,
-                            x: j
-                        };
-                    }
-                }
-            }
-        }
-        else {
-            for(i=0; i<gridSize; i++) {
-                gridArray.push([]);
-                for(j=0; j<gridSize; j++) {
-                    gridArray[i].push(new can.Map({
-                        gid: gridData[j+(gridSize*i)]
-                    }));
-                    if(gridData[j+(gridSize*i)]) {
-                        gridLookup["#"+gridData[j+(gridSize*i)]] = {
-                            y: i,
-                            x: j
-                        };
-                    }
-                }
-            }
-        }
-
-        return {
-            gridData: gridArray,
-            gridLookup: gridLookup
-        };
-    };
-
-    /**
-     * Cross-browser function to determine the name of the transitionEnd event
-     * @return {String} transitionend event
-     */
-    var _whichTransitionEvent = function() {
-        var t,
-            el = document.createElement('fakeelement'),
-            transitions = {
-                'transition':'transitionend',
-                'OTransition':'oTransitionEnd',
-                'MozTransition':'transitionend',
-                'WebkitTransition':'webkitTransitionEnd'
-            };
-
-        for(t in transitions){
-            if(el.style[t] !== undefined ){
-                return transitions[t];
-            }
-        }
-    };
 
     return Control.extend({
         defaults: {
@@ -110,7 +37,16 @@ define([
                 room,
                 roomData;
 
-            this.gridInternals = _makeGridInternals(this.options.roomList, this.options.gridSize);
+            console.dir(this.options);
+            
+            // Set the settings that can be changed at runtime
+            this.settings = new can.Map({
+                wrapping: this.options.wrapping,
+                diagonal: this.options.diagonal,
+                warping: this.options.warping
+            });
+
+            this.gridInternals = Helpers.makeGridInternals(this.options.roomList, this.options.gridSize);
             gridData = this.gridInternals.gridData;
 
             // Create the state
@@ -155,9 +91,14 @@ define([
             this.thegrid = this.element.find(".thegrid");
             this.thegrid.append(fragment.cloneNode(true));
 
-            // Add the grid element and transitionend event to options and rebind event handlers
+            // Add the grid element and transitionend event to options
             this.options.gridEl = this.thegrid;
-            this.options.transitionEndEvent = _whichTransitionEvent();
+            this.options.transitionEndEvent = Helpers.whichTransitionEvent();
+
+            // Add the settings to the options
+            this.options.settings = this.settings;
+
+            // rebind event handlers
             this.on();
 
             // Start the router
@@ -169,6 +110,10 @@ define([
             }
         },
 
+        "{settings} change": function() {
+            this._clearAllowedMoves();
+        },
+
         /**
          * On transistionEnd, re-enable grid movement
          * @param  {HTMLElement} el  thegrid element
@@ -176,6 +121,40 @@ define([
          */
         "{gridEl} {transitionEndEvent}": function(el, ev) {
             this.state.attr("ready", 1);
+        },
+
+        /**
+         * Clear the allowedMoves attribute of each room
+         * @return {Boolean} Whether clearing was successful
+         */
+        _clearAllowedMoves: function() {
+            return this._updateRooms(function(room) {
+                room.removeAttr("allowedMoves");
+                return 1;
+            });
+        },
+
+        /**
+         * Update all the rooms on the grid
+         * @param  {Function} updateFn  Function containing the update logic for each room
+         * @return {Boolean}            Where the update was successful
+         */
+        _updateRooms: function(updateFn) {
+            var i,
+                j,
+                room,
+                result = 1;
+                
+            for(i=0; i<this.options.gridSize; i++) {
+                for(j=0; j<this.options.gridSize; j++) {
+                    room = this.gridInternals.gridData[i][j];
+                    if(room) {
+                        result &= updateFn(room);
+                    }
+                }
+            }
+
+            return result;
         },
 
         /**
@@ -263,7 +242,12 @@ define([
          * @return {Boolean}          Whether move was successfull
          */
         _move: function(fromCoords, toCoords) {
-            var moveToRoom = this._getRoomFromCoordinates(toCoords);
+            var moveToRoom;
+
+            if(JSON.stringify(fromCoords.serialize()) === JSON.stringify(toCoords))
+                return 0;
+
+            moveToRoom = this._getRoomFromCoordinates(toCoords);
 
             // Check if we are allowed to move from the current location to the request location
             if(this._isMoveAllowed(fromCoords, moveToRoom)) {
@@ -285,7 +269,7 @@ define([
         _getAllowedMoves: function(coordinates) {
             var allowedMoves = [],
                 gridSize = this.options.gridSize,
-                wrapping = this.options.wrapping,
+                wrapping = this.settings.attr("wrapping"),
                 roomData = this.gridInternals.gridData[coordinates.y][coordinates.x];
 
             // Check if we've already cached the allowed moves
